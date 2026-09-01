@@ -1,12 +1,16 @@
 
 #pragma once
 
+#include "shared.c"
+
 local usize     WriteStdOut     (void* Data, usize Size);
 local usize     WriteStdErr     (void* Data, usize Size);
 local void*     ReserveMemory   (usize Size);
 local b32       CommitMemory    (void* Memory, usize Size);
 local void      ReleaseMemory   (void* Memory, usize ReservedSize);
 local void      Exit            (u8 ExitCode);
+
+// NOTE(vak): Implementation
 
 #if PlatformWindows
 #   error "platform.c does not support Windows at the moment"

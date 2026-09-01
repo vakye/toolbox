@@ -117,3 +117,29 @@ CTAssert(sizeof(usize) == sizeof(void*));
 #define SSizeMax S64Max
 #define USizeMax U64Max
 
+void* memset(void* DestInit, s32 Byte, usize Size)
+{
+    u8* Dest = (u8*)DestInit;
+    while (Size--)
+        *Dest++ = 0;
+
+    return (DestInit);
+}
+
+void* memcpy(void* DestInit, void* SourceInit, usize Size)
+{
+    u8* Dest = (u8*)DestInit;
+    u8* Source = (u8*)SourceInit;
+    while (Size--)
+        *Dest++ = *Source++;
+
+    return (DestInit);
+}
+
+local void ZeroMemory(void* DestInit, usize Size)                   { memset(DestInit, 0, Size); }
+local void FillMemory(void* DestInit, u8 Byte, usize Size)          { memset(DestInit, 0, Size); }
+local void CopyMemory(void* DestInit, void* SourceInit, usize Size) { memcpy(DestInit, SourceInit, Size); }
+
+#define ZeroType(Pointer)           ZeroMemory(Pointer, sizeof(*(Pointer)))
+#define ZeroArray(Pointer, Count)   ZeroMemory(Pointer, sizeof(*(Pointer)) * (Count))
+
