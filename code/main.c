@@ -5,6 +5,5 @@
 
 local void Main(void)
 {
-
 }
 

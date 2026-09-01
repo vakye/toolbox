@@ -7,16 +7,23 @@
 typedef u32 arena_id;
 #define NilArenaID (0)
 
-local arena_id  MakeArena       (usize MinCommited, usize MinReserved);
+typedef struct
+{
+    usize MinCommited;
+    usize MinReserved;
+    usize Alignment;
+} make_arena_info;
+
+local arena_id  MakeArena       (make_arena_info* Info);
 local void      DeleteArena     (arena_id ArenaID);
 local void      DeleteAllArenas (void);
 
 local void      ResetArena      (arena_id ArenaID);
 local void*     PushArenaSize   (arena_id ArenaID, usize Size);
 
-local usize     ArenaUsed       (arena_id ArenaID);
-local void*     ArenaBaseAt     (arena_id ArenaID);
-local void*     ArenaAllocAt    (arena_id ArenaID);
+local usize     GetArenaUsed    (arena_id ArenaID);
+local void*     GetArenaBaseAt  (arena_id ArenaID);
+local void*     GetArenaAllocAt (arena_id ArenaID);
 
 #define PushArena(ArenaID, Type)                (Type*)PushArenaSize(ArenaID, sizeof(Type))
 #define PushArenaArray(ArenaID, Type, Count)    (Type*)PushArenaSize(ArenaID, sizeof(Type) * (Count))
@@ -29,6 +36,7 @@ typedef struct
     usize Used;
     usize Commited;
     usize Reserved;
+    usize Alignment;
 } arena;
 
 #define MaxArenaCount (64)
@@ -38,10 +46,12 @@ local arena AllArenas[MaxArenaCount] = {0};
 #define ArenaGranuleSize KB(256)
 #define IsValidArenaID(ArenaID) ((ArenaID) > 0) && ((ArenaID) < MaxArenaCount)
 
-local arena_id MakeArena(usize MinCommited, usize MinReserved)
+local arena_id MakeArena(make_arena_info* Info)
 {
-    if (MinReserved == 0)           return (NilArenaID);
-    if (MinReserved <  MinCommited) return (NilArenaID);
+    if (!Info)                                  return (NilArenaID);
+    if (Info->MinReserved == 0)                 return (NilArenaID);
+    if (Info->MinReserved <  Info->MinCommited) return (NilArenaID);
+    if (Info->MinReserved <  Info->Alignment)   return (NilArenaID);
 
     arena_id ArenaID = NilArenaID;
 
@@ -60,10 +70,10 @@ local arena_id MakeArena(usize MinCommited, usize MinReserved)
 
     arena* Arena = AllArenas + ArenaID;
 
-    Arena->Reserved = AlignUp(MinReserved, ArenaGranuleSize);
-    Arena->Commited = AlignUp(MinCommited, ArenaGranuleSize);
-
-    Arena->Base = ReserveMemory(Arena->Reserved);
+    Arena->Reserved     = AlignUp(Info->MinReserved, ArenaGranuleSize);
+    Arena->Commited     = AlignUp(Info->MinCommited, ArenaGranuleSize);
+    Arena->Alignment    = Maximum(1, Info->Alignment);
+    Arena->Base         = ReserveMemory(Arena->Reserved);
 
     if (!Arena->Base)
         return (NilArenaID);
@@ -117,9 +127,11 @@ local void* PushArenaSize(arena_id ArenaID, usize Size)
 
     arena* Arena = AllArenas + ArenaID;
 
-    if (Arena->Used + Size > Arena->Commited)
+    usize AlignedSize = AlignUp(Size, Arena->Alignment);
+
+    if (Arena->Used + AlignedSize > Arena->Commited)
     {
-        usize ExpandSize = (Arena->Used + Size) - Arena->Commited;
+        usize ExpandSize = (Arena->Used + AlignedSize) - Arena->Commited;
         usize CommitSize = AlignUp(ExpandSize, ArenaGranuleSize);
         void* CommitAt   = (u8*)Arena->Base + Arena->Commited;
 
@@ -133,12 +145,12 @@ local void* PushArenaSize(arena_id ArenaID, usize Size)
     }
 
     void* Result = (u8*)Arena->Base + Arena->Used;
-    Arena->Used += Size;
+    Arena->Used += AlignedSize;
 
     return (Result);
 }
 
-local usize ArenaUsed(arena_id ArenaID)
+local usize GetArenaUsed(arena_id ArenaID)
 {
     if (!IsValidArenaID(ArenaID))
         return (0);
@@ -149,7 +161,7 @@ local usize ArenaUsed(arena_id ArenaID)
     return (Result);
 }
 
-local void* ArenaBaseAt(arena_id ArenaID)
+local void* GetArenaBaseAt(arena_id ArenaID)
 {
     if (!IsValidArenaID(ArenaID))
         return (0);
@@ -160,7 +172,7 @@ local void* ArenaBaseAt(arena_id ArenaID)
     return (Result);
 }
 
-local void* ArenaAllocAt(arena_id ArenaID)
+local void* GetArenaAllocAt(arena_id ArenaID)
 {
     if (!IsValidArenaID(ArenaID))
         return (0);
