@@ -3,12 +3,19 @@
 
 #include "shared.c"
 
-local usize     WriteStdOut     (void* Data, usize Size);
-local usize     WriteStdErr     (void* Data, usize Size);
-local void*     ReserveMemory   (usize Size);
-local b32       CommitMemory    (void* Memory, usize Size);
-local void      ReleaseMemory   (void* Memory, usize ReservedSize);
-local void      Exit            (u8 ExitCode);
+typedef usize wall_clock;
+
+local wall_clock    GetClockNow         (void);
+local wall_clock    ClockElapsedSince   (wall_clock Reference);
+local wall_clock    ClockDifference     (wall_clock From, wall_clock To);
+local f64           ClockToSeconds      (wall_clock Clock);
+local void          WaitNanoseconds     (usize Nanoseconds);
+local usize         WriteStdOut         (void* Data, usize Size);
+local usize         WriteStdErr         (void* Data, usize Size);
+local void*         ReserveMemory       (usize Size);
+local b32           CommitMemory        (void* Memory, usize Size);
+local void          ReleaseMemory       (void* Memory, usize ReservedSize);
+local void          Exit                (u8 ExitCode);
 
 // NOTE(vak): Implementation
 
@@ -28,15 +35,26 @@ void EntryPoint(void)
 typedef enum
 {
 #if ArchitectureX64
-    LinuxSyscallNR_Write    = (1),
-    LinuxSyscallNR_MMap     = (9),
-    LinuxSyscallNR_MProtect = (10),
-    LinuxSyscallNR_MUnMap   = (11),
-    LinuxSyscallNR_Exit     = (60),
+    LinuxSyscallNR_Write            = (1),
+    LinuxSyscallNR_MMap             = (9),
+    LinuxSyscallNR_MProtect         = (10),
+    LinuxSyscallNR_MUnMap           = (11),
+    LinuxSyscallNR_Nanosleep        = (35),
+    LinuxSyscallNR_Exit             = (60),
+    LinuxSyscallNR_Clock_GetTime    = (228),
+    LinuxSyscallNR_Clock_GetRes     = (229),
 #else
 #   error Linux syscall numbers are not defined for this architecture yet.
 #endif
 } linux_syscall_nr;
+
+typedef struct
+{
+    u64 Seconds;
+    u64 Nanoseconds;
+} linux_timespec;
+
+#define CLOCK_MONOTONIC (0)
 
 #define STDOUT_FILENO   (1)
 #define STDERR_FILENO   (2)
@@ -79,6 +97,64 @@ local usize LinuxSyscall(
 #endif
 
     return (Result);
+}
+
+local wall_clock GetClockNow(void)
+{
+    linux_timespec Now = {0};
+    LinuxSyscall(
+        LinuxSyscallNR_Clock_GetTime,
+        CLOCK_MONOTONIC,
+        (usize)&Now,
+        0, 0, 0, 0
+    );
+
+    u64 MaskedSeconds = Now.Seconds     & 0xFFFFFFFF;
+    u64 Nanoseconds   = Now.Nanoseconds & 0xFFFFFFFF;
+
+    wall_clock Result = (MaskedSeconds << 32) | Nanoseconds;
+    return (Result);
+}
+
+local wall_clock ClockElapsedSince(wall_clock Reference)
+{
+    return ClockDifference(Reference, GetClockNow());
+}
+
+local wall_clock ClockDifference(wall_clock From, wall_clock To)
+{
+    wall_clock Result = To - From;
+    return (Result);
+}
+
+local f64 ClockToSeconds(wall_clock Clock)
+{
+    u32 Seconds     = (Clock >> 32);
+    u32 Nanoseconds = (Clock & 0xFFFFFFFF);
+    f64 Result      = (f64)Seconds + (Nanoseconds * 1e-9);
+
+    return (Result);
+}
+
+local void WaitNanoseconds(usize Nanoseconds)
+{
+    linux_timespec Duration =
+    {
+        .Seconds     = Nanoseconds / 1000000000,
+        .Nanoseconds = Nanoseconds % 1000000000,
+    };
+
+    linux_timespec Remainder = {0};
+
+    do
+    {
+        LinuxSyscall(
+            LinuxSyscallNR_Nanosleep,
+            (usize)&Duration,
+            (usize)&Remainder,
+            0, 0, 0, 0
+        );
+    } while (Remainder.Seconds || Remainder.Nanoseconds);
 }
 
 local usize WriteStdOut(void* Data, usize Size)
