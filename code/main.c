@@ -1,6 +1,8 @@
 
-void EntryPoint(void)
+#include "shared.c"
+#include "platform.c"
+
+local void Main(void)
 {
-    __asm__ volatile ("syscall" :: "a"(60), "D"(0));
 }
 
