@@ -9,21 +9,21 @@ typedef u32 arena_id;
 
 typedef struct
 {
-    usize MinCommited;
-    usize MinReserved;
-    usize Alignment;
+    usize MinCommited;  // NOTE(vak): Minimum amount of memory that have been mapped to physical pages
+    usize MinReserved;  // NOTE(vak): Minimum size of the virtual address space that the user expects to have
+    usize Alignment;    // NOTE(vak): Alignment for `PushArenaSize` to follow. Has to be a power of 2. If 0 then MakeArena() defaults the alignment to 1.
 } make_arena_info;
 
-local arena_id  MakeArena       (make_arena_info* Info);
-local void      DeleteArena     (arena_id ArenaID);
-local void      DeleteAllArenas (void);
+local arena_id  MakeArena       (make_arena_info* Info);            // NOTE(vak): Allocates a new arena with the specified options
+local void      DeleteArena     (arena_id ArenaID);                 // NOTE(vak): Releases an arena's memory
+local void      DeleteAllArenas (void);                             // NOTE(vak): Deletes all arenas that have been created
 
-local void      ResetArena      (arena_id ArenaID);
-local void*     PushArenaSize   (arena_id ArenaID, usize Size);
+local void      ResetArena      (arena_id ArenaID);                 // NOTE(vak): Resets allocation pointer back to base address (set Used = 0)
+local void*     PushArenaSize   (arena_id ArenaID, usize Size);     // NOTE(vak): Returns current allocation pointer and bump allocation pointer up by `Size`. (Used += Size)
 
-local usize     GetArenaUsed    (arena_id ArenaID);
-local void*     GetArenaBaseAt  (arena_id ArenaID);
-local void*     GetArenaAllocAt (arena_id ArenaID);
+local usize     GetArenaUsed    (arena_id ArenaID);                 // NOTE(vak): Get the amount of memory used so far.
+local void*     GetArenaBaseAt  (arena_id ArenaID);                 // NOTE(vak): Get the base address of the virtual address space.
+local void*     GetArenaAllocAt (arena_id ArenaID);                 // NOTE(vak): Get the allocation pointer: (u8*)Base + Used
 
 #define PushArena(ArenaID, Type)                (Type*)PushArenaSize(ArenaID, sizeof(Type))
 #define PushArenaArray(ArenaID, Type, Count)    (Type*)PushArenaSize(ArenaID, sizeof(Type) * (Count))
@@ -32,18 +32,22 @@ local void*     GetArenaAllocAt (arena_id ArenaID);
 
 typedef struct
 {
-    void* Base;
-    usize Used;
-    usize Commited;
-    usize Reserved;
-    usize Alignment;
+    void* Base;         // NOTE(vak): Base address of the virtual address space
+    usize Used;         // NOTE(vak): Allocation pointer
+    usize Commited;     // NOTE(vak): Amount of memory that has been commited. Memory within the range [Base, Base+Commited) is considered usable.
+    usize Reserved;     // NOTE(vak): Size of the virtual address space
+    usize Alignment;    // NOTE(vak): Alignment for all `PushArenaSize` calls to follow.
 } arena;
 
 #define MaxArenaCount (64)
 
 local arena AllArenas[MaxArenaCount] = {0};
 
+// NOTE(vak): Alignment for the `Commited` and `Reserved` fields of the arena. Should be
+// reasonably large but not too large as to not make too many system calls and to save
+// system memory.
 #define ArenaGranuleSize KB(256)
+
 #define IsValidArenaID(ArenaID) ((ArenaID) > 0) && ((ArenaID) < MaxArenaCount)
 
 local arena_id MakeArena(make_arena_info* Info)

@@ -5,17 +5,19 @@
 
 typedef usize wall_clock;
 
-local wall_clock    GetClockNow         (void);
-local wall_clock    ClockElapsedSince   (wall_clock Reference);
-local wall_clock    ClockDifference     (wall_clock From, wall_clock To);
-local f64           ClockToSeconds      (wall_clock Clock);
-local void          WaitNanoseconds     (usize Nanoseconds);
-local usize         WriteStdOut         (void* Data, usize Size);
-local usize         WriteStdErr         (void* Data, usize Size);
-local void*         ReserveMemory       (usize Size);
-local b32           CommitMemory        (void* Memory, usize Size);
-local void          ReleaseMemory       (void* Memory, usize ReservedSize);
-local void          Exit                (u8 ExitCode);
+local wall_clock    GetClockNow         (void);                                         // NOTE(vak): Get current value of the system wall clock.
+local wall_clock    ClockElapsedSince   (wall_clock Reference);                         // NOTE(vak): Get the amount of time elapsed since the `Reference` point.
+local wall_clock    ClockDifference     (wall_clock From, wall_clock To);               // NOTE(vak): Get the amount of time elapsed between two different points. `From` is assumed to be less than `To`.
+local f64           ClockToSeconds      (wall_clock Clock);                             // NOTE(vak): Convert system wall clock value to seconds.
+local void          WaitNanoseconds     (usize Nanoseconds);                            // NOTE(vak): Suspends calling thread with the duration being the specified `Nanoseconds`.
+local usize         ReadFileToBuffer    (string FilePath, void* Buffer, usize Size);    // NOTE(vak): If Buffer=0, returns file size, otherwise read until there is nothing left or buffer has ran out then return the number of bytes read.
+local usize         WriteStdOut         (void* Data, usize Size);                       // NOTE(vak): Writes to stdout. Returns number of bytes written.
+local usize         WriteStdErr         (void* Data, usize Size);                       // NOTE(vak): Writes to sdterr. Returns number of bytes written.
+local void*         ReserveMemory       (usize Size);                                   // NOTE(vak): Reserve a virtual address space whose size is equal to or larger than 'Size'. Returns 0 if failed, otherwise returns the base address.
+local b32           CommitMemory        (void* Memory, usize Size);                     // NOTE(vak): Makes a virtual address range usable by mapping it to physical memory. Returns true on success, and false on failure.
+local void*         ReserveAndCommit    (usize Size);                                   // NOTE(vak): Reserves and commits a region of memory whose size is equal to or larger than the specified `Size`.
+local void          ReleaseMemory       (void* Memory, usize ReservedSize);             // NOTE(vak): Releases a virtual address space and all of its associated physical memory back to the system.
+local void          Exit                (u8 ExitCode);                                  // NOTE(vak): Make the process exit with the specified `ExitCode`
 
 // NOTE(vak): Implementation
 
@@ -23,19 +25,23 @@ local void          Exit                (u8 ExitCode);
 #   error "platform.c does not support Windows at the moment"
 #elif PlatformLinux
 
-local void Main(void);
+local s32 Main(void);
 
 __attribute__((force_align_arg_pointer))
 void EntryPoint(void)
 {
-    Main();
-    Exit(0);
+    s32 Returned = Main();
+    Exit(Returned);
 }
 
 typedef enum
 {
 #if ArchitectureX64
+    LinuxSyscallNR_Read             = (0),
     LinuxSyscallNR_Write            = (1),
+    LinuxSyscallNR_Open             = (2),
+    LinuxSyscallNR_Close            = (3),
+    LinuxSyscallNR_LSeek            = (8),
     LinuxSyscallNR_MMap             = (9),
     LinuxSyscallNR_MProtect         = (10),
     LinuxSyscallNR_MUnMap           = (11),
@@ -54,7 +60,11 @@ typedef struct
     u64 Nanoseconds;
 } linux_timespec;
 
+
 #define CLOCK_MONOTONIC (0)
+
+#define O_RDONLY        (0)
+#define SEEK_END        (2)
 
 #define STDOUT_FILENO   (1)
 #define STDERR_FILENO   (2)
@@ -157,6 +167,58 @@ local void WaitNanoseconds(usize Nanoseconds)
     } while (Remainder.Seconds || Remainder.Nanoseconds);
 }
 
+local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
+{
+    // NOTE(vak): `FilePath` string may not have a null terminator.
+    static char PathBuffer[KB(4)] = {0};
+
+    if (FilePath.Size >= sizeof(PathBuffer))
+        return (0);
+
+    CopyMemory(PathBuffer, FilePath.Data, FilePath.Size);
+    PathBuffer[FilePath.Size] = '\0';
+
+    s32 FileDescriptor = LinuxSyscall(
+        LinuxSyscallNR_Open,
+        (usize)PathBuffer, O_RDONLY,
+        0, 0, 0, 0
+    );
+
+    if (FileDescriptor < 0)
+        return (0);
+
+    usize Result = 0;
+
+    if (Buffer == 0)
+    {
+        ssize FileSize = LinuxSyscall(
+            LinuxSyscallNR_LSeek,
+            FileDescriptor, 0, SEEK_END,
+            0, 0, 0
+        );
+
+        Result = (usize)FileSize;
+    }
+    else
+    {
+        ssize BytesRead = LinuxSyscall(
+            LinuxSyscallNR_Read,
+            FileDescriptor, (usize)Buffer, Size,
+            0, 0, 0
+        );
+
+        Result = Maximum(0, BytesRead);
+    }
+
+    LinuxSyscall(
+        LinuxSyscallNR_Close,
+        FileDescriptor,
+        0, 0, 0, 0, 0
+    );
+
+    return (Result);
+}
+
 local usize WriteStdOut(void* Data, usize Size)
 {
     ssize WriteResult = LinuxSyscall(
@@ -210,6 +272,21 @@ local b32 CommitMemory(void* Memory, usize Size)
 
     b32 Okay = (CommitResult >= 0);
     return (Okay);
+}
+
+local void* ReserveAndCommit(usize Size)
+{
+    void* Result = ReserveMemory(Size);
+    if (!Result)
+        return (0);
+
+    if (!CommitMemory(Result, Size))
+    {
+        ReleaseMemory(Result, Size);
+        return (0);
+    }
+
+    return (Result);
 }
 
 local void ReleaseMemory(void* Memory, usize ReservedSize)

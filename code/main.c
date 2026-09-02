@@ -3,7 +3,8 @@
 #include "platform.c"
 #include "arena.c"
 
-local void Main(void)
+local s32 Main(void)
 {
+    return (0);
 }
 

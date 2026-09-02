@@ -143,3 +143,12 @@ local void CopyMemory(void* DestInit, void* SourceInit, usize Size) { memcpy(Des
 #define ZeroType(Pointer)           ZeroMemory(Pointer, sizeof(*(Pointer)))
 #define ZeroArray(Pointer, Count)   ZeroMemory(Pointer, sizeof(*(Pointer)) * (Count))
 
+typedef struct
+{
+    char* Data;
+    usize Size;
+} string;
+
+#define Str(Literal)            (string){Literal, sizeof(Literal) - 1}
+#define StrData(Data, Size)     (string){Data, Size}
+
