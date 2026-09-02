@@ -51,7 +51,7 @@ local void PerfMeasure(perf_measure_info* Info)
             Info->ResultTimings[Index] = TimeTaken;
 
         MinTimeTaken    = Minimum(MinTimeTaken, TimeTaken);
-        MaxTimeTaken    = Maximum(MinTimeTaken, TimeTaken);
+        MaxTimeTaken    = Maximum(MaxTimeTaken, TimeTaken);
         TotalTimeTaken  += TimeTaken;
     }
 
