@@ -101,17 +101,17 @@ CTAssert(sizeof(usize) == sizeof(void*));
 #define S8Min  ((s8 )(-128))
 #define S16Min ((s16)(-32768))
 #define S32Min ((s32)(-2147483648))
-#define S64Min ((s64)(-9223372036854775808))
+#define S64Min ((s64)(-9223372036854775808ll))
 
 #define S8Max  ((s8 )(+127))
 #define S16Max ((s16)(+32767))
 #define S32Max ((s32)(+2147483647))
-#define S64Max ((s64)(+9223372036854775807))
+#define S64Max ((s64)(+9223372036854775807ll))
 
 #define U8Max  ((u8 )(+255))
 #define U16Max ((u16)(+65535))
 #define U32Max ((u32)(+4294967295))
-#define U64Max ((u64)(+18446744073709551615))
+#define U64Max ((u64)(+18446744073709551615ull))
 
 #define SSizeMin S64Min
 #define SSizeMax S64Max
