@@ -25,7 +25,7 @@ local usize Println         (print_out Out, string Message);            // NOTE(
 local usize PrintUSize      (print_out Out, usize Value);               // NOTE(vak): Prints an unsigned integer to the specified output. Returns number of bytes written.
 local usize PrintSSize      (print_out Out, ssize Value);               // NOTE(vak): Prints a signed integer to the specified output. Returns number of bytes written.
 local usize PrintF64        (print_out Out, f64 Value);                 // NOTE(vak): Prints a floating point value to the specified output. Returns number of bytes written.
-local usize PrintBytes      (print_out Out, usize Value);               // NOTE(vak): Prints amount of bytes with tb/gb/mb/kb/bytes prefix depending on the value. Returns number of bytes written.
+local usize PrintBytes      (print_out Out, usize Value);               // NOTE(vak): Prints amount of bytes with tb/gb/mb/kb/bytes postfix depending on the value. Returns number of bytes written.
 
 // NOTE(vak): Implementation
 
