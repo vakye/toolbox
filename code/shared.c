@@ -53,6 +53,8 @@
 #define AlignDown(Value, PowerOf2) ((Value) & ~((PowerOf2) - 1))
 #define AlignUp(Value, PowerOf2) (((Value) + (PowerOf2) - 1) & ~((PowerOf2) - 1))
 
+#define IsAligned(Value, PowerOf2) (((Value) & ((PowerOf2) - 1)) == 0)
+
 #define KB(Amount) ((ssize)(Amount) << 10)
 #define MB(Amount) ((ssize)(Amount) << 20)
 #define GB(Amount) ((ssize)(Amount) << 30)

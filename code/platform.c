@@ -17,7 +17,10 @@ local void*         ReserveMemory       (usize Size);                           
 local b32           CommitMemory        (void* Memory, usize Size);                     // NOTE(vak): Makes a virtual address range usable by mapping it to physical memory. Returns true on success, and false on failure.
 local void*         ReserveAndCommit    (usize Size);                                   // NOTE(vak): Reserves and commits a region of memory whose size is equal to or larger than the specified `Size`.
 local void          ReleaseMemory       (void* Memory, usize ReservedSize);             // NOTE(vak): Releases a virtual address space and all of its associated physical memory back to the system.
-local void          Exit                (u8 ExitCode);                                  // NOTE(vak): Make the process exit with the specified `ExitCode`
+local void          ThreadExit          (u8 ExitCode);                                  // NOTE(vak): Exits calling thread with `ExitCode`
+local void          ProcessExit         (u8 ExitCode);                                  // NOTE(vak): Exits entire process with `ExitCode`
+
+#define Exit(ExitCode) ThreadExit(ExitCode)
 
 // NOTE(vak): Implementation
 
@@ -31,7 +34,7 @@ __attribute__((force_align_arg_pointer))
 void EntryPoint(void)
 {
     s32 Returned = Main();
-    Exit(Returned);
+    ProcessExit(Returned);
 }
 
 typedef enum
@@ -49,6 +52,7 @@ typedef enum
     LinuxSyscallNR_Exit             = (60),
     LinuxSyscallNR_Clock_GetTime    = (228),
     LinuxSyscallNR_Clock_GetRes     = (229),
+    LinuxSyscallNR_ExitGroup        = (231),
 #else
 #   error Linux syscall numbers are not defined for this architecture yet.
 #endif
@@ -59,7 +63,6 @@ typedef struct
     u64 Seconds;
     u64 Nanoseconds;
 } linux_timespec;
-
 
 #define CLOCK_MONOTONIC (0)
 
@@ -178,7 +181,7 @@ local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
     CopyMemory(PathBuffer, FilePath.Data, FilePath.Size);
     PathBuffer[FilePath.Size] = '\0';
 
-    s32 FileDescriptor = LinuxSyscall(
+    s32 FileDescriptor = (s32)LinuxSyscall(
         LinuxSyscallNR_Open,
         (usize)PathBuffer, O_RDONLY,
         0, 0, 0, 0
@@ -191,7 +194,7 @@ local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
 
     if (Buffer == 0)
     {
-        ssize FileSize = LinuxSyscall(
+        ssize FileSize = (ssize)LinuxSyscall(
             LinuxSyscallNR_LSeek,
             FileDescriptor, 0, SEEK_END,
             0, 0, 0
@@ -201,7 +204,7 @@ local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
     }
     else
     {
-        ssize BytesRead = LinuxSyscall(
+        ssize BytesRead = (ssize)LinuxSyscall(
             LinuxSyscallNR_Read,
             FileDescriptor, (usize)Buffer, Size,
             0, 0, 0
@@ -221,7 +224,7 @@ local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
 
 local usize WriteStdOut(void* Data, usize Size, ...)
 {
-    ssize WriteResult = LinuxSyscall(
+    ssize WriteResult = (ssize)LinuxSyscall(
         LinuxSyscallNR_Write,
         STDOUT_FILENO,
         (usize)Data,
@@ -235,7 +238,7 @@ local usize WriteStdOut(void* Data, usize Size, ...)
 
 local usize WriteStdErr(void* Data, usize Size, ...)
 {
-    ssize WriteResult = LinuxSyscall(
+    ssize WriteResult = (ssize)LinuxSyscall(
         LinuxSyscallNR_Write,
         STDERR_FILENO,
         (usize)Data,
@@ -249,7 +252,7 @@ local usize WriteStdErr(void* Data, usize Size, ...)
 
 local void* ReserveMemory(usize Size)
 {
-    ssize MapResult = LinuxSyscall(
+    ssize MapResult = (ssize)LinuxSyscall(
         LinuxSyscallNR_MMap,
         0, Size, PROT_NONE,
         MAP_PRIVATE|MAP_ANONYMOUS,
@@ -262,7 +265,7 @@ local void* ReserveMemory(usize Size)
 
 local b32 CommitMemory(void* Memory, usize Size)
 {
-    ssize CommitResult = LinuxSyscall(
+    ssize CommitResult = (ssize)LinuxSyscall(
         LinuxSyscallNR_MProtect,
         (usize)Memory,
         Size,
@@ -299,9 +302,14 @@ local void ReleaseMemory(void* Memory, usize ReservedSize)
     );
 }
 
-local void Exit(u8 ExitCode)
+local void ThreadExit(u8 ExitCode)
 {
     LinuxSyscall(LinuxSyscallNR_Exit, ExitCode, 0, 0, 0, 0, 0);
+}
+
+local void ProcessExit(u8 ExitCode)
+{
+    LinuxSyscall(LinuxSyscallNR_ExitGroup, ExitCode, 0, 0, 0, 0, 0);
 }
 
 #else
