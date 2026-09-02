@@ -11,8 +11,8 @@ local wall_clock    ClockDifference     (wall_clock From, wall_clock To);       
 local f64           ClockToSeconds      (wall_clock Clock);                             // NOTE(vak): Convert system wall clock value to seconds.
 local void          WaitNanoseconds     (usize Nanoseconds);                            // NOTE(vak): Suspends calling thread with the duration being the specified `Nanoseconds`.
 local usize         ReadFileToBuffer    (string FilePath, void* Buffer, usize Size);    // NOTE(vak): If Buffer=0, returns file size, otherwise read until there is nothing left or buffer has ran out then return the number of bytes read.
-local usize         WriteStdOut         (void* Data, usize Size);                       // NOTE(vak): Writes to stdout. Returns number of bytes written.
-local usize         WriteStdErr         (void* Data, usize Size);                       // NOTE(vak): Writes to sdterr. Returns number of bytes written.
+local usize         WriteStdOut         (void* Data, usize Size, ...);                  // NOTE(vak): Writes to stdout. Returns number of bytes written.
+local usize         WriteStdErr         (void* Data, usize Size, ...);                  // NOTE(vak): Writes to sdterr. Returns number of bytes written.
 local void*         ReserveMemory       (usize Size);                                   // NOTE(vak): Reserve a virtual address space whose size is equal to or larger than 'Size'. Returns 0 if failed, otherwise returns the base address.
 local b32           CommitMemory        (void* Memory, usize Size);                     // NOTE(vak): Makes a virtual address range usable by mapping it to physical memory. Returns true on success, and false on failure.
 local void*         ReserveAndCommit    (usize Size);                                   // NOTE(vak): Reserves and commits a region of memory whose size is equal to or larger than the specified `Size`.
@@ -219,7 +219,7 @@ local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
     return (Result);
 }
 
-local usize WriteStdOut(void* Data, usize Size)
+local usize WriteStdOut(void* Data, usize Size, ...)
 {
     ssize WriteResult = LinuxSyscall(
         LinuxSyscallNR_Write,
@@ -233,7 +233,7 @@ local usize WriteStdOut(void* Data, usize Size)
     return (BytesWritten);
 }
 
-local usize WriteStdErr(void* Data, usize Size)
+local usize WriteStdErr(void* Data, usize Size, ...)
 {
     ssize WriteResult = LinuxSyscall(
         LinuxSyscallNR_Write,
