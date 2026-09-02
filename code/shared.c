@@ -1,6 +1,30 @@
 
 #pragma once
 
+#if defined(__clang__)
+#   define CompilerClang    (1)
+#endif
+
+#if defined(_MSC_VER)
+#   define CompilerMSVC     (1)
+#elif defined(__GNUC__)
+#   define CompilerGCC      (1)
+#else
+#   error Unknown compiler
+#endif
+
+#if !defined(CompilerClang)
+#   define CompilerClang    (0)
+#endif
+
+#if !defined(CompilerMSVC)
+#   define CompilerMSVC     (0)
+#endif
+
+#if !defined(CompilerGCC)
+#   define CompilerGCC      (0)
+#endif
+
 #if defined(_WIN32) || defined(_WIN64)
 #   define PlatformWindows  (1)
 #elif defined(__linux__)
