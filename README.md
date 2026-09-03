@@ -91,7 +91,7 @@ local s32 Main(main_info* Info)
 
 To make things more exciting, we can include `print.c` and extend our `Main` function to print our favorite message to the console:
 
-```
+```c
 #include "shared.c"
 #include "platform.c"
 #include "print.c"
@@ -116,7 +116,6 @@ Here is a list of necessary flags and the build command for `clang`:
 
 ```
 > clang -ffreestanding -fno-stack-protector -std=c11 -nostdlib -fuse-ld=lld -Wl,-nostdlib -Wl,-entry,EntryPoint main.c -o main
-
 ```
 
 This should produce an executable named `main`.
@@ -127,7 +126,7 @@ Once compilation has finished successfully, we can run the executable to get our
 
 ```
 > ./main
-> Hello, world!
+Hello, world!
 ```
 
 ## Examples
