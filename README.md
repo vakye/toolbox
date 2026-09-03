@@ -18,7 +18,16 @@ The core motivation of this project was to write a set of core functionality tha
 
 Here is "**[examples/hello_world.c](examples/hello_world.c)**", which I think is a nice illustration of what this project was intended for:
 
-```examples/hello_world.c
+```c
+#include "../shared.c"
+#include "../platform.c"
+#include "../print.c"
+
+local s32 Main(main_info* Info)
+{
+    Println(StdOut(), Str("Hello, world!"));
+    return (0);
+}
 ```
 
 This codebase has a number of features that I think is desirable:
