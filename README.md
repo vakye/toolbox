@@ -7,9 +7,9 @@ A set of simple and convenient `.c` files that is usable within a `CRTL+C` + `CT
   + [Getting Started](#getting-started)
   + [Examples](#examples)
   + [Reference](#reference)
-    + [shared.c](#shared.c)
-    + [platform.c](#platform.c)
-    + [print.c](#print.c)
+    + [shared.c](#sharedc)
+    + [platform.c](#platformc)
+    + [print.c](#printc)
 
 ## Overview
 
@@ -175,9 +175,9 @@ Hello, world!
 
 ## Reference
 
-+ [shared.c](#shared.c)
-+ [platform.c](#platform.c)
-+ [print.c](#print.c)
++ [shared.c](#sharedc)
++ [platform.c](#platformc)
++ [print.c](#printc)
 
 ---
 
