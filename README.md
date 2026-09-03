@@ -98,7 +98,7 @@ To make things more exciting, we can include `print.c` and extend our `Main` fun
 
 local s32 Main(main_info* Info)
 {
-  Println(StdOut(), Str("Hello, world!\n"));
+  Println(StdOut(), Str("Hello, world!"));
   return (0);
 }
 ```
