@@ -10,6 +10,8 @@ A set of simple and convenient `.c` files that is usable within a `CRTL+C` + `CT
     + [shared.c](#sharedc)
     + [platform.c](#platformc)
     + [print.c](#printc)
+    + [arena.c](#arenac)
+    + [lock.c](#lockc)
 
 ## Overview
 
@@ -178,6 +180,8 @@ Hello, world!
 + [shared.c](#sharedc)
 + [platform.c](#platformc)
 + [print.c](#printc)
++ [arena.c](#arenac)
++ [lock.c](#lockc)
 
 ---
 
@@ -307,7 +311,7 @@ local void CopyMemory(void* DestInit, void* SourceInit, usize Size);
 
 - *Macros*:
 
-| #define                                                                 | Comment |
+| `#define`                                                               | Comment |
 | ----------------------------------------------------------------------- | ------- |
 | `ZeroType(Pointer)`                                                     | Zeroes the memory region starting at `Pointer` for `sizeof(*Pointer)` bytes. |
 | `ZeroArray(Pointer, Count)`                                             | Zeroes the memory region starting at `Pointer` for `sizeof(*Pointer) * (Count)` bytes. |
@@ -328,7 +332,7 @@ typedef struct
 
 - *Macros*:
 
-| #define                                                                 | Comment |
+| `#define`                                                               | Comment |
 | ----------------------------------------------------------------------- | ------- |
 | `Str(Literal)`                                                          | Creates a `string` struct from a string literal. An example is `Str("Hello") = (string){.Data = "Hello", .Size = 5}` |
 | `StrData(Data, Size)`                                                   | Creates a `string` struct a pointer to the first byte of the string `Data`, and the number of bytes within the string `Size`. |
@@ -508,7 +512,7 @@ local void ThreadExit(u8 ExitCode);
 local void ProcessExit(u8 ExitCode);
 ```
 
-| #define                      | Comment |
+| `#define`                    | Comment |
 | ---------------------------- | ------- |
 | `Exit(ExitCode)`             | Alias for `ThreadExit`. |
 
@@ -533,7 +537,7 @@ typedef struct
 } print_out;
 ```
 
-| #define                            | Comment |
+| `#define`                          | Comment |
 | ---------------------------------- | ------- |
 | `MakePrintOut(Write, UserData)`    | Creates a `print_out` struct with the user-provided `Write()` function and the `UserData`. |
 
@@ -541,7 +545,7 @@ typedef struct
 
 - *Standard outputs*:
 
-| #define         | Comment |
+| `#define`       | Comment |
 | --------------- | ------- |
 | `StdOut()`      | Initializes a `print_out` struct with `WriteStdOut()` as the write function |
 | `StdErr()`      | Initializes a `print_out` struct with `WriteStdOut()` as the write function |
@@ -577,5 +581,99 @@ local usize PrintF64(print_out Out, f64 Value);
 
 // Prints the number of bytes as their corresponding tb/gb/mb/kb/bytes conversion along with the unit. Returns number of bytes written.
 local usize PrintBytes(print_out Out, usize Value);
+```
+
+---
+
+### arena.c
++ Description: Implements an arena allocator. Arena allocators reserve a large virtual address space, and will subsequently commit more memory as needed. Allocations are very simple as an allocation pointer starts at the beginning of the virtual address space, and is increment upon allocation via `PushArenaSize()`. Deallocations can only happen by resetting the allocation pointer back to the start with `ResetArena()`. Thus, allocations are guaranteed to be contiguous.
++ Dependencies: `shared.c`, `platform.c`
+
+---
+
+```c
+// An arena_id identifies an arena created by `MakeArena()`.
+// An arena_id of 0 is considered an invalid arena ID.
+
+typedef u32 arena_id;
+#define NilArenaID (0)
+
+typedef struct
+{
+    // Minimum size of memory to commit beforehand.
+    usize MinCommited;
+
+    // Minimum size of the virtual address space to reserve.
+    usize MinReserved;
+
+    // Alignment for `PushArenaSize()` to follow. `PushArenaSize()` will
+    // align every requested allocation size to this amount. If this is set
+    // to 0 then `MakeArena()` will default the alignment to 1. Must be
+    // a power of 2.
+    usize Alignment;
+} make_arena_info;
+
+// Creates a new arena allocator along with its memory region with the
+// user-specified options. There is a maximum number (64) of arenas that
+// can exist at the same time, so the user must not create too many
+// arenas.
+local arena_id MakeArena(make_arena_info* Info);
+
+// Deletes an arena allocator and releases its memory region.
+local void DeleteArena(arena_id ArenaID);
+
+// Delete all arena allocators that have been created.
+local void DeleteAllArenas (void);
+
+// Resets arena allocation pointer back to the start of the virtual address space.
+// This effectively deallocates every single allocation that have been made with
+// this arena.
+local void ResetArena(arena_id ArenaID);
+
+// Returns current allocation pointer, and bumps allocation pointer up while following
+// alignment requirements.
+local void* PushArenaSize(arena_id ArenaID, usize Size);
+
+// Get the current location of the allocation pointer relative to the start of
+// the virtual addresss space. Represents the total amount of bytes that have
+// been allocated so far.
+local usize GetArenaUsed(arena_id ArenaID);
+
+// Get the start of the virtual address space allocated for this arena.
+local void* GetArenaBaseAt(arena_id ArenaID);
+
+// Compute and return the allocation pointer: (u8*)GetArenaBaseAt(Arena) + GetArenaUsed(Arena)
+local void* GetArenaAllocAt(arena_id ArenaID);
+```
+
+| `#define`                               | Comment |
+| --------------------------------------- | ------- |
+| `PushArena(ArenaID, Type)`              | Call `PushArenaSize()` with the size being `sizeof(Type)` and returns the casted allocation pointer `Type*`. |
+| `PushArenaArray(ArenaID, Type, Count)`  | Call `PushArenaSize()` with the size being `sizeof(Type) * (Count)` and returns the casted allocation pointer `Type*`. |
+
+---
+
+### lock.c
++ Description: Implements atomic locks for inter-thread synchronization.
++ Dependencies: `shared.c`, `platform.c`
+
+| `typedef`                               | Comment |
+| --------------------------------------- | ------- |
+| `lock32`                                | Signed 32-bit integer that represents the state of a lock. `0` means unlocked, `1` means locked |
+
+| `#define`                               | Comment |
+| --------------------------------------- | ------- |
+| `IsLockReleased(Lock)`                  | Returns `true` if lock has been released, and is currently unlocked. Returns `false` otherwise. |
+| `IsLockAcquired(Lock)`                  | Returns `true` if lock has been acquired, and is currently locked. Returns `false` otherwise. |
+
+```c
+// Tries to acquire a lock. Returns true if lock was acquired successfully, false if lock acquisition failed.
+local b32 TryAcquireLock(lock32* Lock);
+
+// Acquires a lock. If lock was already acquired then spin-wait until lock is released.
+local void AcquireLockSpin(lock32* Lock);
+
+// Releases a lock.
+local void ReleaseLock(lock32* Lock);
 ```
 
