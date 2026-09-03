@@ -3,6 +3,14 @@
 
 #include "shared.c"
 
+typedef struct
+{
+    string* Args;
+    usize   ArgCount;
+} main_info;
+
+local s32 Main(main_info* Info); // NOTE(vak): Implement your main function like this and the platform implementation will call it.
+
 typedef usize wall_clock;
 
 typedef u32 thread_id;
@@ -23,6 +31,7 @@ local wall_clock    ClockElapsedSince   (wall_clock Reference);                 
 local wall_clock    ClockDifference     (wall_clock From, wall_clock To);               // NOTE(vak): Get the amount of time elapsed between two different points. `From` is assumed to be less than `To`.
 local f64           ClockToSeconds      (wall_clock Clock);                             // NOTE(vak): Convert system wall clock value to seconds.
 local void          WaitNanoseconds     (usize Nanoseconds);                            // NOTE(vak): Suspends calling thread with the duration being the specified `Nanoseconds`.
+local b32           DoesFileExist       (string FilePath);                              // NOTE(vak): Checks if a file exists. Returns true if file exists, else returns false.
 local usize         ReadFileToBuffer    (string FilePath, void* Buffer, usize Size);    // NOTE(vak): If Buffer=0, returns file size, otherwise read until there is nothing left or buffer has ran out then return the number of bytes read.
 local usize         WriteStdOut         (void* Data, usize Size, ...);                  // NOTE(vak): Writes to stdout. Returns number of bytes written.
 local usize         WriteStdErr         (void* Data, usize Size, ...);                  // NOTE(vak): Writes to sdterr. Returns number of bytes written.
@@ -43,13 +52,76 @@ local void          ProcessExit         (u8 ExitCode);                          
 #   error "platform.c does not support Windows at the moment"
 #elif PlatformLinux
 
-local s32 Main(void);
+#define LinuxMaxArgCount (1024)
 
-__attribute__((force_align_arg_pointer))
+void LinuxSetupAndCallMain(s32 ArgCount, char** Args)
+{
+    persist string ConvertedArgs[LinuxMaxArgCount] = {0};
+
+    if (ArgCount >= 0)
+    {
+        for (s32 Index = 0; Index < ArgCount; Index++)
+            ConvertedArgs[Index] = CString(Args[Index]);
+    }
+
+    s32 Returned = Main(&(main_info){
+        .Args       = ConvertedArgs,
+        .ArgCount   = (usize)Maximum(0, ArgCount),
+    });
+
+    ProcessExit(Returned);
+}
+
+// NOTE(vak): Unfortunately, we have to dabble in inline assembly on Linux. There are two places
+// that require inline assembly right now:
+//          + LinuxPerformClone():  Creates a new thread and calls thread entry point properly
+//          + EntryPoint():         Retrieves ArgCount, Args and then calls LinuxSetupAndCallMain()
+
+__attribute__((naked))
 void EntryPoint(void)
 {
-    s32 Returned = Main();
-    ProcessExit(Returned);
+#if ArchitectureX64
+    // NOTE(vak): Layout of stack that Linux sets up for us on x86_64:
+
+    //      rsp + 0  -> ArgCount            (s32)
+    //      rsp + 8  -> Args[0]             (char*)
+    //      rsp + 16 -> Args[1]             (char*)
+    //      rsp + 24 -> Args[2]             (char*)
+    //      rsp + .. -> Args[3]             (char*)
+    //      rsp + .. -> Args[4]             (char*)
+    //      ...         ....
+    //      ...         ....
+    //      rsp + .. -> Args[ArgCount - 1]  (char*)
+
+    //      After the Args[] array is the array of
+    //      environment variables. The last entry
+    //      in the Envp[] array is set to 0, which
+    //      terminates the array.
+
+    //      rsp + .. -> Envp[0]             (char*)
+    //      rsp + .. -> Envp[1]             (char*)
+    //      rsp + .. -> Envp[2]             (char*)
+    //      rsp + .. -> Envp[3]             (char*)
+    //      rsp + .. -> Envp[...]           (char*)
+    //      ...         ....
+    //      rsp + .. -> Envp[...] = 0       (char*)
+
+    // NOTE(vak): Keep in mind that the stack is misaligned (aligned to
+    // 8-byte boundary instead of 16-byte boundary) when we're in EntryPoint().
+    // However, the call to LinuxSetupAndCallMain() will push the return address
+    // and align the stack to a 16-byte boundary, so it's all good.
+
+    // NOTE(vak): This assembly code simply performs:
+    //      LinuxSetupAndCallMain(ArgCount, Args)
+
+    __asm__ volatile (
+        "lea    8(%rsp), %rsi\n"            // NOTE(vak): Put base address of `Args` array into rsi
+        "mov    0(%rsp), %edi\n"            // NOTE(vak): Put ArgCount into rdi
+        "call   LinuxSetupAndCallMain\n"    // NOTE(vak): Perform the call
+    );
+#else
+#   error Linux EntryPoint() is not implemented on this architecture yet.
+#endif
 }
 
 typedef enum
@@ -59,6 +131,7 @@ typedef enum
     LinuxSyscallNR_Write            = (1),
     LinuxSyscallNR_Open             = (2),
     LinuxSyscallNR_Close            = (3),
+    LinuxSyscallNR_Stat             = (4),
     LinuxSyscallNR_LSeek            = (8),
     LinuxSyscallNR_MMap             = (9),
     LinuxSyscallNR_MProtect         = (10),
@@ -96,6 +169,35 @@ typedef struct
     s32                 JoinFutex;
     s32                 Returned;
 } linux_thread;
+
+// NOTE(vak): Taken from /usr/include/asm-generic/stat.h
+// From the comment in the file, this should be the correct 64-bit version.
+// We don't target 32-bit architectures so this should be the only version
+// of `stat` that we use.
+
+typedef struct
+{
+    u64                 Device;
+    u64                 SerialNumber;
+    u32                 Mode;
+    u32                 LinkCount;
+    u32                 UserID;
+    u32                 GroupID;
+    u64                 DeviceNumber;
+    u64                 Pad0;
+    s64                 SizeInBytes;
+    s32                 OptimalBlockSize;
+    s32                 Pad1;
+    s64                 AllocatedBlocks512;
+    s64                 LastAccessSeconds;
+    u64                 LastAccessNanoseconds;
+    s64                 LastModificationSeconds;
+    u64                 LastModificationNanoseconds;
+    s64                 LastStatusChangeSeconds;
+    u64                 LastStatusChangeNanoseconds;
+    u32                 Pad2;
+    u32                 Pad3;
+} linux_stat;
 
 #define LinuxMaxThreadSpawnCount (4096)
 #define LinuxIsValidThreadID(ThreadID) (((ThreadID) > 0) && ((ThreadID) < LinuxMaxThreadSpawnCount))
@@ -212,10 +314,33 @@ local void WaitNanoseconds(usize Nanoseconds)
     } while (Remainder.Seconds || Remainder.Nanoseconds);
 }
 
+local b32 DoesFileExist(string FilePath)
+{
+    // NOTE(vak): `FilePath` string may not have a null terminator.
+    static char PathBuffer[KB(1)] = {0};
+
+    if (FilePath.Size >= sizeof(PathBuffer))
+        return (0);
+
+    CopyMemory(PathBuffer, FilePath.Data, FilePath.Size);
+    PathBuffer[FilePath.Size] = '\0';
+
+    linux_stat Stat = {0};
+    ssize FStatResult = LinuxSyscall(
+        LinuxSyscallNR_Stat,
+        (usize)PathBuffer,
+        (usize)&Stat,
+        0, 0, 0, 0
+    );
+
+    b32 Result = (FStatResult >= 0);
+    return (Result);
+}
+
 local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size)
 {
     // NOTE(vak): `FilePath` string may not have a null terminator.
-    static char PathBuffer[KB(4)] = {0};
+    static char PathBuffer[KB(1)] = {0};
 
     if (FilePath.Size >= sizeof(PathBuffer))
         return (0);

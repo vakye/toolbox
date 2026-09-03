@@ -178,3 +178,16 @@ typedef struct
 #define Str(Literal)            (string){Literal, sizeof(Literal) - 1}
 #define StrData(Data, Size)     (string){Data, Size}
 
+local string CString(char* Data)
+{
+    string Result = StrData(Data, 0);
+
+    if (Result.Data)
+    {
+        while (Result.Data[Result.Size] != 0)
+            Result.Size++;
+    }
+
+    return (Result);
+}
+
