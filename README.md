@@ -18,9 +18,8 @@ The core motivation of this project was to write a set of core functionality tha
 
 Here is "**[examples/hello_world.c](examples/hello_world.c)**", which I think is a nice illustration of what this project was intended for:
 
-  ```c
-  # examples/hello_world.c
-  ```
+```examples/hello_world.c
+```
 
 This codebase has a number of features that I think is desirable:
   + **Zero dependencies**: This code base doesn't use the standard library or any other third-party library. Everything was implemented from scratch, and certain modules can be integrated into a low-level environment (operating systems, embedded, ...) without much difficulty.
