@@ -9,6 +9,7 @@ A set of simple and convenient `.c` files that is usable within a `CRTL+C` + `CT
   + [Reference](#reference)
     + [shared.c](#shared.c)
     + [platform.c](#platform.c)
+    + [print.c](#print.c)
 
 ## Overview
 
@@ -170,11 +171,18 @@ Hello, world!
     Punctuation count: 1
   ```
 
+---
+
 ## Reference
+
++ [shared.c](#shared.c)
++ [platform.c](#platform.c)
++ [print.c](#print.c)
 
 ---
 
 ### shared.c
++ Description: A collection of shared definitions, types and functions that are widely used throughout this codebase.
 + Dependencies: `None`
 
 ---
@@ -284,11 +292,20 @@ Hello, world!
 
 ***Memory***
 
-| Function                                                                | Comment |
-| ----------------------------------------------------------------------- | ------- |
-| `local void ZeroMemory(void* DestInit, usize Size)`                     | For `Size` bytes, set every byte in the memory region starting from `DestInit` to `0`. |
-| `local void FillMemory(void* DestInit, u8 Byte, usize Size)`            | For `Size` bytes, set every byte in the memory region starting from `DestInit` to `Byte`. |
-| `local void CopyMemory(void* DestInit, void* SourceInit, usize Size)`   | Copies `Size` bytes from the memory region starting at `SourceInit` to the memory region starting at `DestInit` |
+- *Functions*:
+
+```c
+// Sets an entire region of memory to 0.
+local void ZeroMemory(void* DestInit, usize Size);
+
+// Sets every single byte in an entire memory region to a value.
+local void FillMemory(void* DestInit, u8 Byte, usize Size);
+
+// Copy every single byte from the source memory region to the destination.
+local void CopyMemory(void* DestInit, void* SourceInit, usize Size);
+```
+
+- *Macros*:
 
 | #define                                                                 | Comment |
 | ----------------------------------------------------------------------- | ------- |
@@ -299,21 +316,266 @@ Hello, world!
 
 ***String***
 
-| `struct string`  | Comment |
-| ---------------- | ------- |
-| `char* Data`     | A pointer to the very first byte of the string. Not expected to be null-terminated. |
-| `usize Size`     | Number of bytes within the string, not including null terminator if string is null-terminated. |
+- *Structures*:
+
+```c
+typedef struct
+{
+  char* Data; // Pointer to the first byte of the string
+  usize Size; // Size of the string in bytes
+} string;
+```
+
+- *Macros*:
 
 | #define                                                                 | Comment |
 | ----------------------------------------------------------------------- | ------- |
 | `Str(Literal)`                                                          | Creates a `string` struct from a string literal. An example is `Str("Hello") = (string){.Data = "Hello", .Size = 5}` |
 | `StrData(Data, Size)`                                                   | Creates a `string` struct a pointer to the first byte of the string `Data`, and the number of bytes within the string `Size`. |
 
-| Function                                                                | Comment |
-| ----------------------------------------------------------------------- | ------- |
-| `local string CString(char* Data)`                                      | Creates a `string` struct from a null-terminated string starting at `Data` |
+- *Functions*:
+
+```c
+// Creates a `string` struct from a null-terminated string.
+local string CString(char* Data);
+```
 
 ---
 
 ### platform.c
++ Description: Implements operating system related functionality. The `Main()` function is expected to be implemented by the user after including `platform.c`.
++ Dependencies: `shared.c`
+
+---
+
+- *Main*:
+
+```c
+typedef struct
+{
+  string* Args;       // Array of command line arguments
+  usize   ArgCount;   // Number of command line arguments that was supplied to the program
+} main_info;
+
+// Signature of the Main() function that the platform implementation will call.
+// Must be implemented by the user when `platform.c` is included.
+local s32 Main(main_info* Info);
+```
+
+---
+
+- *Clock*:
+
+```c
+// Get current timestamp value in system wall clock units.
+local wall_clock GetClockNow(void);
+
+// Get the amount of time (in system wall clock units) that has elapsed since the reference point.
+local wall_clock ClockElapsedSince(wall_clock Reference);
+
+// Compute the difference between two points in time in system clock units.
+// `From` is expected to be smaller than `To`.
+local wall_clock ClockDifference(wall_clock From, wall_clock To);
+
+// Convert system wall clock units to seconds.
+local f64 ClockToSeconds(wall_clock Clock);
+```
+
+---
+
+- *Wait*:
+
+```c
+// Suspends calling thread for the specified number of nanoseconds.
+// The underlying implementation may wait a little bit more or less,
+// so the implementation must take into account small inaccuracies.
+local void WaitNanoseconds(usize Nanoseconds);
+```
+
+---
+
+- *File*:
+
+```c
+// Checks if a file exists. Returns true if file exists, otherwise returns false.
+local b32 DoesFileExist(string FilePath);
+
+// Reads a file from the beginning to a user provided buffer.
+// If `Size` is 0, return the size of the file in bytes.
+// If `Size` is larger than 0 and a `Buffer` is provided, return the number of bytes read.
+local usize ReadFileToBuffer(string FilePath, void* Buffer, usize Size);
+```
+
+---
+
+- *Console*:
+
+```c
+// Writes to stdout and return the number of bytes written. The extra "..." is ignored,
+// and is generally used to cast this function to a different signature (see print.c)
+local usize WriteStdOut(void* Data, usize Size, ...);
+
+// Writes to stderr and return the number of bytes written. The extra "..." is ignored,
+// and is generally used to cast this function to a different signature (see print.c)
+local usize WriteStdErr(void* Data, usize Size, ...);
+```
+
+---
+
+- *Memory*:
+
+```c
+// Reserves a virtual address space with a size that is equal to or larger than
+// the user-specified `Size` argument. This virtual address space is not usable
+// as it requires to be commited with CommitMemory() before it is valid. It is
+// simple a range of addresses that are reserved beforehand. Returns a pointer
+// to the start of the virtual address space if succcessful, otherwise returns 0.
+local void* ReserveMemory(usize Size);
+
+// Commits a virtual address space reserved with ReserveMemory(), thereby making
+// it usable. This function will grab actual physical pages from RAM, so using this
+// function means that you're consuming memory. Returns true on succcess, otherwise
+// returns false.
+local b32 CommitMemory(void* Memory, usize Size);
+
+// Reserves and commits a region of memory that is equal to or larger than the
+// user specified `Size`. This region of memory is immediately usable. Returns
+// a pointer to the start of the memory region on success, otherwise returns 0.
+local void* ReserveAndCommit(usize Size);
+
+// Releases a region of memory that was reserved with ReserveMemory(). `ReservedSize`
+// must match the `Size` argument that was provided to ReserveMemory().
+local void  ReleaseMemory(void* Memory, usize ReservedSize);
+```
+
+---
+
+- *Threading*:
+
+```c
+// A thread ID that identifies a thread spawned with SpawnThread().
+// A thread ID of 0 is considered an invalid thread ID.
+
+typedef u32 thread_id;
+#define NilThreadID (0)
+
+// Signature of the function that will be called when a thread is spawned.
+// The `UserData` argument here is the exact same as the `UserData` field in
+// the `spawn_thread_info` struct.
+typedef s32 thread_callback(void* UserData);
+
+typedef struct
+{
+  // The function that will be called when the thread spawns.
+  thread_callback* Callback;
+
+  // User data to provide to the callback.
+  void* UserData;
+
+  // A pointer to the start of the stack memory region. This
+  // pointer must be aligned on a 64-byte boundary. Note that
+  // ReserveMemory() and the like satisfies this requirement,
+  // so any valid address returned from ReserveMemory() or
+  // ReserveAndCommit() will work.
+  void* StackBase;
+
+  // Size of the stack region. Must be equal to or larger than KB(1)
+  // and be aligned to a 64-byte boundary.
+  usize StackSize;
+} spawn_thread_info;
+
+// Spawns a new thread with the user specified options.
+// There is a maximum number of threads (4096) that can be spawned,
+// so the user should keep it in mind. It is recommended that
+// a thread pool be implemented instead of spawning a new thread
+// for every task.
+local thread_id SpawnThread(spawn_thread_info* Info);
+
+// Suspends the calling thread until the thread specified by `ThreadID`
+// returns. Returns the specified thread's exit code.
+local s32 JoinThread(thread_id ThreadID);
+```
+
+---
+
+- *Control flow*:
+
+```c
+// Makes the calling thread exit with the specified `ExitCode`
+local void ThreadExit(u8 ExitCode);
+
+// Forces all threads within this process to exit with the specified `ExitCode`
+local void ProcessExit(u8 ExitCode);
+```
+
+| #define                      | Comment |
+| ---------------------------- | ------- |
+| `Exit(ExitCode)`             | Alias for `ThreadExit`. |
+
+---
+
+### print.c
++ Description: Implements printing functions for characters, strings, integers, ...
++ Dependencies: `shared.c`, `platform.c`
+
+---
+
+- *User-specified output*:
+
+```c
+// User-provided function for writing to their own output. Returns the number of bytes written.
+typedef usize print_write(void* Data, usize Size, void* UserData);
+
+typedef struct
+{
+    print_write*    Write;      // Write function provided by user
+    void*           UserData;   // Any data that the user might want to pass into Write()
+} print_out;
+```
+
+| #define                            | Comment |
+| ---------------------------------- | ------- |
+| `MakePrintOut(Write, UserData)`    | Creates a `print_out` struct with the user-provided `Write()` function and the `UserData`. |
+
+---
+
+- *Standard outputs*:
+
+| #define         | Comment |
+| --------------- | ------- |
+| `StdOut()`      | Initializes a `print_out` struct with `WriteStdOut()` as the write function |
+| `StdErr()`      | Initializes a `print_out` struct with `WriteStdOut()` as the write function |
+
+---
+
+- *Printing*:
+
+```c
+// Writes a buffer to the specified output. Returns number of bytes written.
+local usize PrintWrite(print_out Out, void* Data, usize Size);
+
+// Prints a single character to the specified output. Returns number of bytes written.
+local usize PrintCharacter(print_out Out, char Character);
+
+// Prints a newline character to the specified output. Returns number of bytes written.
+local usize PrintNewLine(print_out Out);
+
+// Prints a string to the specified output. Returns number of bytes written.
+local usize Print(print_out Out, string Message);
+
+// Prints a string followed by a newline to the specified output. Returns number of bytes written.
+local usize Println(print_out Out, string Message);
+
+// Prints an unsigned integer value to the specified output. Returns number of bytes written.
+local usize PrintUSize(print_out Out, usize Value);
+
+// Prints a signed integer value to the specified output. Returns number of bytes written.
+local usize PrintSSize(print_out Out, ssize Value);
+
+// Prints a floating point number to the specified output. Returns number of bytes written.
+local usize PrintF64(print_out Out, f64 Value);
+
+// Prints the number of bytes as their corresponding tb/gb/mb/kb/bytes conversion along with the unit. Returns number of bytes written.
+local usize PrintBytes(print_out Out, usize Value);
+```
 
