@@ -12,7 +12,7 @@ A set of simple and convenient `.c` files that is usable within a `CRTL+C` + `CT
 
 ## Overview
 
-This is a collection of code that I commonly use or write. It is organized into a collection of files with each file providing a set of functionality. Certain modules can depend on other files as well (they may contain a `#include` directive to other modules).
+This is a collection of code that I commonly use or write. It is organized into a collection of files with each file providing a set of functionality. Certain files can depend on other files as well (specified with `#include` directives).
 
 The core motivation of this project was to write a set of core functionality that I find to be essential or just plain useful to have before starting a new project.
 
@@ -31,10 +31,10 @@ local s32 Main(main_info* Info)
 ```
 
 This codebase has a number of features that I think is desirable:
-  + **Zero dependencies**: This code base doesn't use the standard library or any other third-party library. Everything was implemented from scratch, and certain modules can be integrated into a low-level environment (operating systems, embedded, ...) without much difficulty.
-  + **Small and Convenient**: Each module exposes a small, convenient API along with the implementation of said API. Most files start with a list of dependencies on other modules and a struct + function cheatsheet, which serves as a convenient reference.
-  + **Full Access to Source Code**: Including the `.c` files means building the source code of the modules along with the program. This means that debugging becomes infinitely easier as you have complete access to the internals, and are able to place debug breakpoints along with watches on certain values.
-  + **Portable**: Certain modules like `platform.c` may depend on the underlying operating system or the instruction set architecture (ISA) of the machine. Several `#if` checks are placed throughout, and will notify the programmer if an operating system or an ISA hasn't been implemented yet. This makes it easy to identify parts of the codebase for porting.
+  + **Zero dependencies**: This code base doesn't use the standard library or any other third-party library. Everything was implemented from scratch, and certain files can be integrated into a low-level environment (operating systems, embedded, ...) without much difficulty.
+  + **Small and Convenient**: Each file exposes a small, convenient API along with the implementation of said API. Most files start with a list of dependencies on other files and a struct + function cheatsheet, which serves as a convenient reference.
+  + **Full Access to Source Code**: Including the `.c` files means building the source code of the files along with the program. This means that debugging becomes infinitely easier as you have complete access to the internals, and are able to place debug breakpoints along with watches on certain values.
+  + **Portable**: Certain files like `platform.c` may depend on the underlying operating system or the instruction set architecture (ISA) of the machine. Several `#if` checks are placed throughout, and will notify the programmer if an operating system or an ISA hasn't been implemented yet. This makes it easy to identify parts of the codebase for porting.
 
 ## Compatibility
 
